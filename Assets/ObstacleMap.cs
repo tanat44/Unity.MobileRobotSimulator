@@ -6,8 +6,9 @@ public class ObstacleMap
 {
 	Bounds bound;
 	float gridSize = 0.1f;
+	float safeZoneSize = 0.5f;
 	List<GameObject> obstracles;
-	bool[,] map;
+	bool[,] map;			// true if there's obstacle
 
 	public ObstacleMap(Bounds _bound, List<GameObject> _obstracles, float _gridSize)
 	{
@@ -35,16 +36,42 @@ public class ObstacleMap
 				}
 			}
 		}
+
+		//applySafeZone();
 	}
 
-	public void PrintMap()
+	public bool IsCollide(Vector3 pos)
+	{
+		pos -= bound.min;
+		pos /= gridSize;
+		return map[(int)pos.z, (int)pos.x];
+	}
+
+	public bool IsPathCollide(Vector3 start, Vector3 end)
+	{
+		Vector3 step = Vector3.Normalize(end - start) * gridSize;
+		float u_abs = Vector3.Magnitude(end - start);
+
+		float distance = 0;
+		Vector3 x = start;
+		while (distance < u_abs)
+		{
+			distance += gridSize;
+			x += step;
+			if (IsCollide(x))
+				return true;
+		}
+		return false;
+	}
+
+	static public void PrintMap(bool[,] aMap)
 	{
 		string output = "";
-		for(int j=map.GetLength(0)-1; j>=0; j--)
+		for(int j= aMap.GetLength(0)-1; j>=0; j--)
 		{
-			for (int i=0; i < map.GetLength(1); ++i)
+			for (int i=0; i < aMap.GetLength(1); ++i)
 			{
-				output += map[j, i] ? "X " : "- ";
+				output += aMap[j, i] ? "X " : "- ";
 			}
 			output += "\n";
 		}
@@ -56,18 +83,45 @@ public class ObstacleMap
 		return new Vector3(i, 0, j) * gridSize + bound.min;
 	}
 
-	public bool IsCollide(Vector3 pos)
-	{
-		pos -= bound.min;
-		pos /= gridSize;
-		return map[(int)pos.z, (int)pos.x];
-	}
-
 	bool IsCollide(GameObject go, Vector3 point)
 	{
         var b = go.GetComponent<Renderer>().bounds;
 		return b.Contains(point);
     }
+
+	void applySafeZone()
+	{
+		bool[,] newMap = new bool[map.GetLength(0), map.GetLength(1)];
+		int safeGridCount = (int) (safeZoneSize / gridSize);
+		Debug.Log(safeGridCount);
+		for (int j=0; j<map.GetLength(0); ++j)
+		{
+			for (int i=0; i<map.GetLength(1); ++i)
+			{
+				if (map[i,j])
+				{
+					for (int dy=-safeGridCount; dy<=safeGridCount; ++dy)
+					{
+						for (int dx=-safeGridCount; dx<=safeGridCount; ++dx)
+						{
+							if (newMap[i, j])
+								continue;
+
+							int newX = i + dx;
+							int newY = j + dy;
+
+							if (newX >= 0 && newX < map.GetLength(1) && newY >= 0 && newY < map.GetLength(0) )
+								newMap[newX, j=newY] = true;
+						}
+					}
+				}
+			}
+		}
+        PrintMap(map);
+        PrintMap(newMap);
+        map = newMap;
+
+	}
 
 }
 
