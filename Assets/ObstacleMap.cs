@@ -6,7 +6,6 @@ public class ObstacleMap
 {
 	Bounds bound;
 	float gridSize = 0.1f;
-	float safeZoneSize = 0.5f;
 	List<GameObject> obstracles;
 	bool[,] map;			// true if there's obstacle
 
@@ -37,7 +36,7 @@ public class ObstacleMap
 			}
 		}
 
-		//applySafeZone();
+		applySafeZone();
 	}
 
 	public bool IsCollide(Vector3 pos)
@@ -67,11 +66,14 @@ public class ObstacleMap
 	static public void PrintMap(bool[,] aMap)
 	{
 		string output = "";
-		for(int j= aMap.GetLength(0)-1; j>=0; j--)
+		for (int j = aMap.GetLength(0) - 1; j >= 0; --j)
 		{
-			for (int i=0; i < aMap.GetLength(1); ++i)
+			for (int i = 0; i < aMap.GetLength(1); ++i)
 			{
-				output += aMap[j, i] ? "X " : "- ";
+				if (aMap[j, i])
+					output += "X ";
+				else
+					output += "- ";
 			}
 			output += "\n";
 		}
@@ -92,35 +94,28 @@ public class ObstacleMap
 	void applySafeZone()
 	{
 		bool[,] newMap = new bool[map.GetLength(0), map.GetLength(1)];
-		int safeGridCount = (int) (safeZoneSize / gridSize);
-		Debug.Log(safeGridCount);
-		for (int j=0; j<map.GetLength(0); ++j)
+		int safeGridCount = (int) (PathFinder.OBSTACLE_SAFE_DISTANCE / gridSize) +1;
+		for (int j = 0; j < map.GetLength(0); ++j)
 		{
-			for (int i=0; i<map.GetLength(1); ++i)
+			for (int i = 0; i < map.GetLength(1); ++i)
 			{
-				if (map[i,j])
+				if (map[i, j])
 				{
-					for (int dy=-safeGridCount; dy<=safeGridCount; ++dy)
+					for (int dy = -safeGridCount; dy <= safeGridCount; ++dy)
 					{
-						for (int dx=-safeGridCount; dx<=safeGridCount; ++dx)
+						for (int dx = -safeGridCount; dx <= safeGridCount; ++dx)
 						{
-							if (newMap[i, j])
-								continue;
-
 							int newX = i + dx;
 							int newY = j + dy;
 
-							if (newX >= 0 && newX < map.GetLength(1) && newY >= 0 && newY < map.GetLength(0) )
-								newMap[newX, j=newY] = true;
+                            if (newX >= 0 && newX < map.GetLength(1) && newY >= 0 && newY < map.GetLength(0))
+								newMap[newX, newY] = true;
 						}
 					}
 				}
 			}
 		}
-        PrintMap(map);
-        PrintMap(newMap);
-        map = newMap;
-
+		map = newMap;
 	}
 
 }

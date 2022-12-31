@@ -4,7 +4,7 @@ using UnityEngine;
 
 public class Robot : MonoBehaviour
 {
-
+    public enum ControlType { Waypoint, Emulation };
     public enum DriveMode { Forward, SpotTurn, Curve };
 
     const float MAX_ANGLE_DIFF = 3.0f;     // degree
@@ -26,10 +26,11 @@ public class Robot : MonoBehaviour
     // state
     int currentIndex = 0;
     DriveMode currentDriveMode = DriveMode.Forward;
+    ControlType controlType = ControlType.Waypoint;
 
-    public void SetWayPoint (List<Vector3> _waypoint)
+    public void SetWayPoint (List<Vector3> _waypoint, ControlType _controlType)
     {
-        Utils.Print(_waypoint);
+        controlType = _controlType;
         waypoint = _waypoint;
         currentIndex = 0;
         currentVelocity = 0.0f;
@@ -41,16 +42,9 @@ public class Robot : MonoBehaviour
             transform.forward = waypoint[1] - waypoint[0];
     }
 
-    // Start is called before the first frame update
-    void Start()
+    void WayPointControlLoop()
     {
-        
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        if (waypoint.Count == 0 || currentIndex >= waypoint.Count-1)
+        if (waypoint.Count == 0 || currentIndex >= waypoint.Count - 1)
             return;
 
         Vector3 pos = transform.position;
@@ -69,7 +63,7 @@ public class Robot : MonoBehaviour
                 float rotAccel;
                 float direction = angleDiff < 0 ? 1.0f : -1.0f;
 
-                if (Mathf.Abs(angleDiff) > stopingTheta) 
+                if (Mathf.Abs(angleDiff) > stopingTheta)
                     rotAccel = direction * -rotAcceleration;
                 else
                     rotAccel = direction * rotAcceleration;
@@ -90,6 +84,7 @@ public class Robot : MonoBehaviour
         // FORWARD DRIVING
         else if (currentDriveMode == DriveMode.Forward)
         {
+
             // linear motion
             Vector3 v1_pos = waypoint[currentIndex + 1] - pos;
 
@@ -111,6 +106,7 @@ public class Robot : MonoBehaviour
             else
                 accel = maxAcceleration;
             currentVelocity += accel * dt;
+
             if (currentVelocity < 0)
                 currentVelocity = 0;
             else if (currentVelocity > maxVelocity)
@@ -118,6 +114,23 @@ public class Robot : MonoBehaviour
 
             pos += transform.forward * currentVelocity * dt;
             transform.position = pos;
+        }
+    }
+
+    void EmulationControlLoop()
+    {
+
+    }
+
+    void Update()
+    {
+        if (controlType == ControlType.Waypoint)
+        {
+            WayPointControlLoop();
+        }
+        else if (controlType == ControlType.Emulation)
+        {
+            EmulationControlLoop();
         }
     }
 

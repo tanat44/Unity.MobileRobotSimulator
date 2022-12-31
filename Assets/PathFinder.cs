@@ -5,64 +5,120 @@ using UnityEngine;
 
 public class PathFinder : MonoBehaviour
 {
-
     Vector3 x0, x1;
     Bounds simulationBound;
-    List<Vector3> pathToRender = new List<Vector3>();
+    ObstacleMap obstacleMap;
+    GameObject x0GameObject, x1GameObject;
+    GameObject pathGameObject;
 
-    const float GRID_SIZE = 0.1f;
+    const float GRID_SIZE = 0.2f;
+    public const float OBSTACLE_SAFE_DISTANCE = 0.5f;
 
     void Start()
     {
+        // Init
+        pathGameObject = new GameObject("Path");
+
         // Find all obstracles
         var obstracleParent = GameObject.Find("Obstracle");
         List<GameObject> obstracleGo = new List<GameObject>();
+        var safeZoneMaterial = Resources.Load<Material>("Material/ObstacleSafeZone");
+        var safeZoneParent = new GameObject("SafeZone");
         for(int i=0; i<obstracleParent.transform.childCount; ++i)
         {
-obstracleGo.Add(obstracleParent.transform.GetChild(i).gameObject);
+            GameObject go = obstracleParent.transform.GetChild(i).gameObject;
+            obstracleGo.Add(go);
+
+            // Draw safezone
+            GameObject safeZone = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            safeZone.transform.parent = safeZoneParent.transform;
+            safeZone.name = go.name + "-SafeZone";
+            safeZone.transform.position = go.transform.position + Vector3.up * 0.1f;
+            var scale = go.transform.localScale;
+            safeZone.transform.localScale = new Vector3(scale.x + 2*OBSTACLE_SAFE_DISTANCE, 0.1f, scale.z + 2 * OBSTACLE_SAFE_DISTANCE);
+            var renderer = safeZone.GetComponent<Renderer>();
+            renderer.material = safeZoneMaterial;
+
         }
 
         // Build obstracle map
         simulationBound = GameObject.Find("Extent").GetComponent<Renderer>().bounds;
-        ObstacleMap obstacleMap = new ObstacleMap(simulationBound, obstracleGo, GRID_SIZE);
+        obstacleMap = new ObstacleMap(simulationBound, obstracleGo, GRID_SIZE);
 
-        // Planning
-        x0 = GameObject.Find("StartingPoint").transform.position;
-        x1 = GameObject.Find("EndingPoint").transform.position;
+        // Init startingPoint and endingPoint
+        x0GameObject = GameObject.Find("StartingPoint");
+        x0 = x0GameObject.transform.position;
+        x1GameObject = GameObject.Find("EndingPoint");
+        x1 = x1GameObject.transform.position;
+
+        RecalculatePath();
+    }
+
+    public void RecalculatePath()
+    {
         List<Vector3> path = aStar(x0, x1, simulationBound, obstacleMap);
         var sPath = smoothPath(path, obstacleMap);
-        renderPath(sPath);
+        renderPath(sPath, Color.cyan, "SmoothPath");
+
+        // Bezier
+        CompositeBezierPath bPath = new CompositeBezierPath(sPath);
+        renderPath(bPath.Rasterize(), Color.blue, "CompositeBezier");
 
         // Sent waypoint to robot
         var robot = GameObject.Find("Robot").GetComponent<Robot>();
-        robot.SetWayPoint(sPath);
+        robot.SetWayPoint(bPath.Rasterize(), Robot.ControlType.Waypoint);
     }
 
-    void renderPath(List<Vector3> path, float width = 0.02f)
+    public void SetStartingPoint(Vector3 start)
     {
-        GameObject go = new GameObject("Path");
-        go.transform.parent = transform;
+        x0 = start;
+        x0GameObject.transform.position = start;
+        RecalculatePath();
+    }
+
+    public void SetEndingPoint(Vector3 end)
+    {
+        x1 = end;
+        x1GameObject.transform.position = end;
+        RecalculatePath();
+    }
+
+    void renderPath(List<Vector3> path, Color color, string name, float width = 0.02f)
+    {
+        var oldRender = GameObject.Find($"{pathGameObject.name}/{name}");
+        if (oldRender != null)
+            GameObject.Destroy(oldRender);
+
+        // render polyline
+        GameObject go = new GameObject(name);
+        go.transform.parent = pathGameObject.transform;
         var lr = go.AddComponent<LineRenderer>();
-        lr.material = Resources.Load<Material>("Material/Line");
-        lr.startColor = Color.white;
+        var material = Resources.Load<Material>("Material/Line");
+        var newMaterial = Instantiate(material);
+        newMaterial.color = color;
+        lr.material = newMaterial;
         lr.positionCount = path.Count;
         lr.SetPositions(path.ToArray());
         lr.startWidth = width;
         lr.endWidth = width;
         lr.useWorldSpace = false;
 
+        // render controlpoints
         GameObject cps = new GameObject("ControlPoints");
         cps.transform.parent = go.transform;
+        var cpMaterial = Instantiate<Material>(newMaterial);
+        const float lightness = 0.5f;
+        cpMaterial.color = new Color(color.r * lightness, color.g * lightness, color.b * lightness);
 
-        for(int i=1; i<path.Count-1; ++i)
+        for (int i=1; i<path.Count-1; ++i)
         {
             GameObject cp = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             cp.name = i.ToString();
-            cp.transform.localScale = Vector3.one * width * 10;
+            cp.transform.localScale = Vector3.one * width * 4;
             cp.transform.position = path[i];
             cp.transform.parent = cps.transform;
             var renderer = cp.GetComponent<Renderer>();
-            renderer.material = Resources.Load<Material>("Material/ControlPoint");
+            renderer.material = cpMaterial;
         }
         go.transform.Translate(Vector3.up * 0.1f);
     }
@@ -141,6 +197,7 @@ obstracleGo.Add(obstracleParent.transform.GetChild(i).gameObject);
             currentId = cameFrom[currentId];
             totalPath.Add(allPos[currentId]);
         }
+        totalPath.Reverse();
         return totalPath;
     }
 
@@ -162,7 +219,7 @@ obstracleGo.Add(obstracleParent.transform.GetChild(i).gameObject);
             var currentId = openSet.Peek();
             if (Vector3.Magnitude(goal - allPos[currentId]) < GRID_SIZE)
             {
-                Debug.Log("Found");
+                Debug.Log("A* Found Solution");
                 return reconstructPath(cameFrom, currentId, allPos);
             }
 
@@ -190,23 +247,7 @@ obstracleGo.Add(obstracleParent.transform.GetChild(i).gameObject);
             }
         }
 
-        Debug.Log("Not found");
+        Debug.Log("A* Not Found");
         return new List<Vector3>();
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        
-    }
-
-    private void FixedUpdate()
-    {
-        Debug.DrawLine(x0, x1, Color.blue, 2.0f);
-
-        for(int i=0; i<pathToRender.Count -1; ++i)
-        {
-            Debug.DrawLine(pathToRender[i], pathToRender[i + 1], Color.green);
-        }
     }
 }
