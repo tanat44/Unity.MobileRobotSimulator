@@ -57,16 +57,32 @@ public class PathFinder : MonoBehaviour
     public void RecalculatePath()
     {
         List<Vector3> path = aStar(x0, x1, simulationBound, obstacleMap);
-        var sPath = smoothPath(path, obstacleMap);
-        renderPath(sPath, Color.cyan, "SmoothPath");
+        var smoothenPath = smoothPath(path, obstacleMap);
+        renderPath(smoothenPath, Color.cyan, "SmoothPath");
 
         // Bezier
-        CompositeBezierPath bPath = new CompositeBezierPath(sPath);
-        renderPath(bPath.Rasterize(), Color.blue, "CompositeBezier");
+        CompositeBezierPath bPath = new CompositeBezierPath(smoothenPath);
+        var rasterPath = bPath.Rasterize();
+        renderPath(rasterPath, Color.blue, "CompositeBezier");
+
+        //var testPath = buildTestPath();
+        //renderPath(testPath, Color.blue, "CompositeBezier");
 
         // Sent waypoint to robot
         var robot = GameObject.Find("Robot").GetComponent<Robot>();
-        robot.SetWayPoint(bPath.Rasterize(), Robot.ControlType.Waypoint);
+        robot.SetWayPoint(rasterPath);
+    }
+
+    List<Vector3> buildTestPath()
+    {
+        List<Vector3> output = new List<Vector3>();
+        output.Add(new Vector3(0, 0, 0));
+        output.Add(new Vector3(0.5f, 0, 0));
+        output.Add(new Vector3(1.5f, 0, 0.5f));
+        output.Add(new Vector3(2.0f, 0, 0));
+        output.Add(new Vector3(3.0f, 0, 0));
+        output.Add(new Vector3(4.0f, 0, 0));
+        return output;
     }
 
     public void SetStartingPoint(Vector3 start)
